@@ -1,0 +1,71 @@
+Task 1
+Dijkstra (h=0): visited=6493, final cost=158
+A* with L1:     visited=2788, final cost=158
+
+L1(start,goal)=abs(85-6)+abs(85-6)=158. Optimal cost equals L1, so there exists at least
+one obstacle-free Manhattan-shortest path. This does not mean every
+Manhattan path is free; it means obstacles do not force a detour on the optimal path.
+
+A* with L1 visits fewer states than Dijkstra because the heuristic guides expansion
+toward the goal. Final cost is identical: L1 is admissible (and consistent) for
+4-connected unit-cost grids, so A* remains optimal.
+
+Task 2
+A) Four orientations (0, 45, 90, 135 deg) are enough: they are the four distinct
+   discretized footprints of the rod. Orientations 180..315 deg would duplicate
+   those same four footprints under the given discretization, so they add no new
+   collision information. What is lost: finer angular resolution, continuous
+   theta, and any asymmetry that a body without this discrete footprint set would need.
+
+B) See Task 2B figure: environment with rod at (50, 50, theta=0).
+   Orientations left to right on Task 2A figure: workspace, then theta=0, 45, 90, 135 deg.
+
+C) C-space via convolve2d(env, rod[:,:,theta], boundary='symm', mode='same') then
+   normalize_image per orientation layer. Shape = (100, 100, 4).
+   Each rod[:,:,theta] is unchanged by a 180-deg rotation (k == np.flip(k)),
+   so convolve2d and correlate2d give the same result here.
+   With boundary='fill', fillvalue=1 the free-cell counts per layer are the
+   same as with symm (4677 / 3926 / 4574 / 3909).
+   Slices left to right: theta=0,1,2,3; free counts 4677/3926/4574/3909.
+
+D) |C| = 100 x 100 x 4 = 40,000 configs. Orientation slices differ because
+   axis-aligned vs diagonal footprints collide with different obstacle cells;
+   corridors may open in one orientation and close in another. Diagonal layers
+   (theta=1,3) have fewer free cells (wider effective sweep on the grid).
+
+Task 3
+Dijkstra (h=0):        visited=16323, cost=164
+A* (L1 on x,y):        visited=8665,  cost=164
+A* (L1 + orientation): visited=8496,  cost=164
+
+Cost 164 = 158 (xy L1) + 6. Minimal orientation distance from theta_start=2 to
+theta_goal=0 is 2 rotations, so 4 of the 6 rotations are extra, made to get
+around obstacles.
+
+Example: at steps 85-86 the rod at (29,65) rotates
+theta: 0 -> 3 -> 2 (away from the goal orientation). It then traverses the
+corridor along y=66 (x in [31, 48]) where theta=0 is in collision but
+theta=2 (90 deg) is free. At the goal (85,85) it rotates theta: 2 -> 3 -> 0.
+
+Proposed heuristic:
+h(q, qG) = abs(x - xG) + abs(y - yG)
+         + min(abs(theta - thetaG), 4 - abs(theta - thetaG)).
+
+Admissible: each translation changes x or y by 1, so at least L1(x,y)
+translations are needed; each rotation changes theta by +/-1 (mod 4), so at
+least the circular orientation distance min(abs(dtheta), 4 - abs(dtheta))
+rotations are needed; these action types are separate, hence
+cost* >= L1 + d_theta. The heuristic never overestimates, so it is admissible
+and A* stays optimal.
+
+Consistency (unit costs), same conclusion:
+  - translation: h_theta unchanged, h_xy changes by +/-1, so h(q) <= 1 + h(q');
+  - rotation by +/-1: h_xy unchanged, h_theta changes by +/-1, so
+    h(q) <= 1 + h(q'), with equality when rotating toward the goal.
+  Also h(goal)=0.
+
+L1+theta vs L1(xy) only saves 169 expansions because h_theta <= 2 while
+h_xy is up to 158 and dominates. The optimal cost stays 164.
+
+Relation to Task 1: the pattern is the same. A better admissible heuristic
+reduces the number of visited states and does not change the optimal cost.
